@@ -133,3 +133,11 @@ A2A Base URL - computes the default URL based on the controller service name if 
 {{- printf "http://%s-controller.%s.svc.cluster.local:%d" (include "kagent.fullname" .) (include "kagent.namespace" .) (.Values.controller.service.ports.port | int) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Check if network policies should be enabled for auth enforcement
+Requires both oauth2-proxy to be enabled AND controller auth mode to be proxy
+*/}}
+{{- define "kagent.networkPolicy.enabled" -}}
+{{- and (index .Values "oauth2-proxy" "enabled") (eq .Values.controller.auth.mode "proxy") .Values.networkPolicy.enabled -}}
+{{- end -}}
