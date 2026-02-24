@@ -115,6 +115,10 @@ type Config struct {
 	Proxy struct {
 		URL string
 	}
+	Auth struct {
+		Mode        string
+		UserIDClaim string
+	}
 	LeaderElection     bool
 	ProbeAddr          string
 	SecureMetrics      bool
@@ -170,6 +174,9 @@ func (cfg *Config) SetFlags(commandLine *flag.FlagSet) {
 
 	commandLine.StringVar(&cfg.Proxy.URL, "proxy-url", "", "Proxy URL for internally-built k8s URLs (e.g., http://proxy.kagent.svc.cluster.local:8080)")
 
+	commandLine.StringVar(&cfg.Auth.Mode, "auth-mode", "unsecure", "Authentication mode: unsecure or proxy")
+	commandLine.StringVar(&cfg.Auth.UserIDClaim, "auth-user-id-claim", "sub", "JWT claim name for user identity")
+
 	commandLine.StringVar(&agent_translator.DefaultImageConfig.Registry, "image-registry", agent_translator.DefaultImageConfig.Registry, "The registry to use for the image.")
 	commandLine.StringVar(&agent_translator.DefaultImageConfig.Tag, "image-tag", agent_translator.DefaultImageConfig.Tag, "The tag to use for the image.")
 	commandLine.StringVar(&agent_translator.DefaultImageConfig.PullPolicy, "image-pull-policy", agent_translator.DefaultImageConfig.PullPolicy, "The pull policy to use for the image.")
@@ -206,6 +213,7 @@ type BootstrapConfig struct {
 	Manager  manager.Manager
 	Router   *mux.Router
 	DbClient dbpkg.Client
+	Config   *Config
 }
 
 type CtrlManagerConfigFunc func(manager.Manager) error
@@ -398,6 +406,7 @@ func Start(getExtensionConfig GetExtensionConfig) {
 		Manager:  mgr,
 		Router:   router,
 		DbClient: dbClient,
+		Config:   &cfg,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to get start config")

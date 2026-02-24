@@ -73,15 +73,9 @@ spec:
             {{- end }}
             - name: AUTH_MODE
               value: {{ .Values.controller.auth.mode | default "unsecure" | quote }}
-            {{- if eq .Values.controller.auth.mode "proxy" }}
-            - name: AUTH_JWT_CLAIM_USER_ID
-              value: {{ .Values.controller.auth.jwt.claims.userId | default "" | quote }}
-            - name: AUTH_JWT_CLAIM_EMAIL
-              value: {{ .Values.controller.auth.jwt.claims.email | default "" | quote }}
-            - name: AUTH_JWT_CLAIM_NAME
-              value: {{ .Values.controller.auth.jwt.claims.name | default "" | quote }}
-            - name: AUTH_JWT_CLAIM_GROUPS
-              value: {{ .Values.controller.auth.jwt.claims.groups | default "" | quote }}
+            {{- if .Values.controller.auth.userIdClaim }}
+            - name: AUTH_USER_ID_CLAIM
+              value: {{ .Values.controller.auth.userIdClaim | quote }}
             {{- end }}
             {{- with .Values.controller.env }}
               {{- toYaml . | nindent 12 }}
