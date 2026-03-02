@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { OnboardingWizard } from './onboarding/OnboardingWizard';
 
@@ -16,6 +16,10 @@ const getInitialOnboardingState = (): boolean | null => {
 export function AppInitializer({ children }: { children: React.ReactNode }) {
   const [isOnboarding, setIsOnboarding] = useState<boolean | null>(getInitialOnboardingState);
   const pathname = usePathname();
+
+  useEffect(() => {
+    setIsOnboarding(getInitialOnboardingState());
+  }, []);
 
   const handleOnboardingComplete = () => {
     localStorage.setItem(LOCAL_STORAGE_KEY, 'true');
