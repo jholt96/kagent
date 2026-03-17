@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { ArrowBigUp, X, Loader2, Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatMessage from "@/components/chat/ChatMessage";
 import StreamingMessage from "./StreamingMessage";
-import TokenStatsDisplay from "./TokenStats";
+import SessionTokenStatsDisplay from "@/components/chat/TokenStats";
 import type { TokenStats, Session, ChatStatus, ToolDecision } from "@/types";
 import StatusDisplay from "./StatusDisplay";
 import { createSession, getSessionTasks, checkSessionExists } from "@/app/actions/sessions";
@@ -38,11 +38,6 @@ export default function ChatInterface({ selectedAgentName, selectedNamespace, se
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [currentInputMessage, setCurrentInputMessage] = useState("");
-  const [tokenStats, setTokenStats] = useState<TokenStats>({
-    total: 0,
-    input: 0,
-    output: 0,
-  });
 
   const [chatStatus, setChatStatus] = useState<ChatStatus>("ready");
 
@@ -57,6 +52,9 @@ export default function ChatInterface({ selectedAgentName, selectedNamespace, se
   const [sessionNotFound, setSessionNotFound] = useState<boolean>(false);
   const isCreatingSessionRef = useRef<boolean>(false);
   const [isFirstMessage, setIsFirstMessage] = useState<boolean>(!sessionId);
+  const [sessionStats, setSessionStats] = useState<TokenStats>({ total: 0, prompt: 0, completion: 0 });
+  // Mutable ref so pendingTurnStats survives re-renders between A2A stream events
+  const pendingTurnStatsRef = useRef<TokenStats | undefined>(undefined);
   const [pendingDecisions, setPendingDecisions] = useState<Record<string, ToolDecision>>({});
   const pendingDecisionsRef = useRef<Record<string, ToolDecision>>({});
   /** Per-tool rejection reasons collected as the user rejects individual tools. */
@@ -77,25 +75,27 @@ export default function ChatInterface({ selectedAgentName, selectedNamespace, se
     },
   });
 
-  const { handleMessageEvent } = createMessageHandlers({
+  const { handleMessageEvent } = useMemo(() => createMessageHandlers({
     setMessages: setStreamingMessages,
     setIsStreaming,
     setStreamingContent,
-    setTokenStats,
     setChatStatus,
+    setSessionStats,
+    pendingTurnStats: pendingTurnStatsRef,
     agentContext: {
       namespace: selectedNamespace,
       agentName: selectedAgentName
     }
-  });
+  }), [selectedNamespace, selectedAgentName]);
 
   useEffect(() => {
     async function initializeChat() {
-      setTokenStats({ total: 0, input: 0, output: 0 });
+      setSessionStats({ total: 0, prompt: 0, completion: 0 });
       setStreamingMessages([]);
       setPendingDecisions({});
       pendingDecisionsRef.current = {};
       pendingRejectionReasonsRef.current = {};
+      pendingTurnStatsRef.current = undefined;
 
       // Skip completely if this is a first message session creation flow
       if (isFirstMessage || isCreatingSessionRef.current) {
@@ -128,11 +128,11 @@ export default function ChatInterface({ selectedAgentName, selectedNamespace, se
         }
         if (!messagesResponse.data || messagesResponse?.data?.length === 0) {
           setStoredMessages([]);
-          setTokenStats({ total: 0, input: 0, output: 0 });
+          setSessionStats({ total: 0, prompt: 0, completion: 0 });
         }
         else {
           const extractedMessages = extractMessagesFromTasks(messagesResponse.data);
-          const extractedTokenStats = extractTokenStatsFromTasks(messagesResponse.data);
+          setSessionStats(extractTokenStatsFromTasks(messagesResponse.data));
 
           // Resolved approvals are already inline in extractedMessages (with
           // approved/rejected badges). Only pending approvals need appending.
@@ -143,7 +143,6 @@ export default function ChatInterface({ selectedAgentName, selectedNamespace, se
               ? [...extractedMessages, ...pendingApprovalMessages]
               : extractedMessages
           );
-          setTokenStats(extractedTokenStats);
 
           if (hasPendingApproval) {
             setChatStatus("input_required");
@@ -191,6 +190,7 @@ export default function ChatInterface({ selectedAgentName, selectedNamespace, se
     setPendingDecisions({});
     pendingDecisionsRef.current = {};
     pendingRejectionReasonsRef.current = {};
+    pendingTurnStatsRef.current = undefined;
 
     // For new sessions or when no stored messages exist, show the user message immediately
     const userMessage: Message = {
@@ -680,7 +680,7 @@ export default function ChatInterface({ selectedAgentName, selectedNamespace, se
       <div className="w-full sticky bg-secondary bottom-0 md:bottom-2 rounded-none md:rounded-lg p-4 border  overflow-hidden transition-all duration-300 ease-in-out">
         <div className="flex items-center justify-between mb-4">
           <StatusDisplay chatStatus={chatStatus} />
-          <TokenStatsDisplay stats={tokenStats} />
+          {sessionStats.total > 0 && <SessionTokenStatsDisplay stats={sessionStats} />}
         </div>
 
         <form onSubmit={handleSendMessage}>
